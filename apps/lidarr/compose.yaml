@@ -1,0 +1,19 @@
+---
+version: "2.1"
+services:
+  lidarr:
+    image: lscr.io/linuxserver/lidarr:latest
+    container_name: lidarr
+    env_file:
+      - .env
+    environment:
+      - PUID=1202
+      - PGID=1100
+      - TZ=${TZ}
+    volumes:
+      - ${CONFIG}/lidarr:/config
+      - ${MEDIA}/music:/music
+      - ${DOWNLOADS}/:/downloads
+    ports:
+      - 8686:8686
+    restart: always
