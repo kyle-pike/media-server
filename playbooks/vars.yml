@@ -1,0 +1,18 @@
+---
+# variables for setup.yml
+podman_user: podman-ager
+podman_id: 2000
+
+sonarr:
+  image: lscr.io/linuxserver/sonarr:latest
+  puid: 1
+  pgid: 1
+  port: 8989
+  shows:
+
+radarr:
+  image: lscr.io/linuxserver/radarr:latest
+  puid: 2
+  pgid: 1
+  port: 7878
+  movies:
