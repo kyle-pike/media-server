@@ -2,41 +2,59 @@
 # Configures a Debian based distro to be a media server
 - name: Media Server Setup
   hosts: pve
+  become: true
   gather_facts: false
+
+  vars:
+    podman_user: podman-ager
+    podman_id: 2000
+
   tasks:
 
     - name: Apt update
-      become: true
       ansible.builtin.apt:
         update_cache: true
         cache_valid_time: 3600  # Update cache if older than one hour
 
     - name: Apt upgrade
-      become: true
       ansible.builtin.apt:
         upgrade: full
         autoremove: true
         autoclean: true
 
     - name: Install podman and its requirements
-      become: true
       ansible.builtin.apt:
         pkg:
           - podman-compose
           - slirp4netns
 
-    - name: Append line to .bashrc # requirement for rootless podman
+    - name: Create a non-login user for running containers
+      ansible.builtin.user:
+        name: "{{ podman_user }}"
+        uid: "{{ podman_id }}"
+
+    - name: Append line to .bashrc  # requirement for rootless podman
       ansible.builtin.lineinfile:
-        path: /home/$USER/.bashrc
-        line: 'export XDG_RUNTIME_DIR=/run/user/$(id -u)'
-        state: present  # Ensures line is present
+        path: /home/{{ podman_user }}/.bashrc
+        line: 'export XDG_RUNTIME_DIR=/run/user/{{ podman_id }}'
+        state: present
         insertbefore: EOF  # Add the line at the end of the file
-      # notify:
-        # - Reload bashrc
 
-  # handlers:
+    - name: Modify /etc/subuid  # set user namespaces for container user
+      ansible.builtin.lineinfile:
+        path: /etc/subuid
+        search_string: "{{ podman_user }}"
+        state: present
+        line: "{{ podman_user }}:200000:100"
 
-  #   - name: Reload bashrc # reload .bashrc file to instantly apply new settings
-  #     ansible.builtin.command: . /home/$USER/.bashrc && tail -n 1 /home/$USER/.bashrc
-  #     register: bashrc_last_line
-  #     changed_when: "'export XDG_RUNTIME_DIR=/run/user/$(id -u)' in bashrc_last_line.stdout"
+    - name: Modify /etc/subgid  # set user namespaces for container user
+      ansible.builtin.lineinfile:
+        path: /etc/subgid
+        search_string: "{{ podman_user }}"
+        state: present
+        line: "{{ podman_user }}:200000:100"
+
+    # - name: Enable login linger  # allow processes to continue without user session
+    #   ansible.builtin.command: loginctl enable-linger {{ podman_user }}; loginctl show-user {{ podman_user }} --property=Linger
+    #   register: result
+    #   changed_when: '"yes" in result.stdout'
