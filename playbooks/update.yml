@@ -1,0 +1,17 @@
+---
+# Updates the configured debian server's packages and containers
+- name: Update media server
+  hosts: pve
+  become: false
+  gather_facts: false
+  vars_files: vars.yml
+
+  tasks:
+    # - name: Pull an image
+    #   containers.podman.podman_image:
+    #     name: quay.io/bitnami/wildfly
+
+    # - name: Remove an image
+    #   containers.podman.podman_image:
+    #     name: quay.io/bitnami/wildfly
+    #     state: absent
