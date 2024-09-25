@@ -1,7 +1,7 @@
 ---
 # Configures a Debian based distro to be a media server
 - name: Media server setup
-  hosts: pve
+  hosts: all
   become: true
   gather_facts: false
   vars_files: vars.yml
@@ -18,21 +18,23 @@
         autoremove: true
         autoclean: true
 
-    - name: Install podman and its requirements
+    - name: Install rootless podman requirements
       ansible.builtin.apt:
         pkg:
           - podman-compose
           - slirp4netns
+          - acl
 
     - name: Create a non-login user for running containers
       ansible.builtin.user:
         name: "{{ podman_user }}"
         uid: "{{ podman_id }}"
+        shell: /usr/sbin/nologin
 
-    - name: Append line to .bashrc  # requirement for rootless podman
+    - name: Append line to .bashrc  # set path for container user's podman config files
       ansible.builtin.lineinfile:
         path: /home/{{ podman_user }}/.bashrc
-        line: 'export XDG_RUNTIME_DIR=/run/user/{{ podman_id }}'
+        line: "export XDG_RUNTIME_DIR=/run/user/{{ podman_id }}"
         state: present
         insertbefore: EOF  # Add the line at the end of the file
 
@@ -41,36 +43,17 @@
         path: /etc/subuid
         search_string: "{{ podman_user }}"
         state: present
-        line: "{{ podman_user }}:200000:100"
+        line: "{{ podman_user }}:200000:2000"
 
     - name: Modify /etc/subgid  # set user namespaces for container user
       ansible.builtin.lineinfile:
         path: /etc/subgid
         search_string: "{{ podman_user }}"
         state: present
-        line: "{{ podman_user }}:200000:100"
+        line: "{{ podman_user }}:200000:2000"
 
-    - name: Enable login linger  # allow processes to continue without user session
+    - name: Enable login linger  # allow processes to continue without container user session
       ansible.builtin.shell: loginctl enable-linger {{ podman_user }} && loginctl show-user {{ podman_user }} --property=Linger
       register: result
       changed_when: '"Linger=yes" in result.stdout'
       failed_when: result.rc == 2 or "Linger=no" in result.stdout
-
-    # - name: Re-create a redis container with systemd service file generated in /tmp/
-    #   containers.podman.podman_container:
-    #     name: myredis
-    #     image: redis
-    #     state: present
-    #     recreate: true
-    #     expose:
-    #       - 6379
-    #     volumes_from:
-    #       - mydata
-    #     generate_systemd:
-    #     path: /home/{{ podman_user }}/.config/systemd/user/
-    #     restart_policy: always
-    #     stop_timeout: 120
-    #     names: true
-    #     container_prefix: sonarr
-
-    #TODO create users and groups for containers

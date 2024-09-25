@@ -1,0 +1,41 @@
+---
+# Installs media center apps as rootless podman containers
+- name: Container setup
+  hosts: all
+  gather_facts: false
+  vars_files: vars.yml
+  become: true
+  become_user: "{{ podman_user }}"
+
+  tasks:
+
+    - name: Create Sonarr container
+      containers.podman.podman_container:
+        name: sonarr
+        image: "{{ sonarr['image'] }}"
+        state: present
+        publish:
+          - 8989:8989
+          # - "{{ sonarr['port'] }}": "{{ sonarr['port'] }}"
+        generate_systemd:
+          path: "{{ podman_systemd_path }}"
+          new: true
+          restart_policy: always
+        env:
+          PUID: "{{ sonarr['puid'] }}"
+          PGID: "{{ sonarr['pgid'] }}"
+          TZ: "{{ timezone }}"
+        # volumes:
+          # -
+
+    - name: Enable service container-sonarr
+      ansible.builtin.systemd_service:
+        daemon_reload: true
+        scope: user
+        enabled: true
+        state: started
+        name: container-sonarr
+        masked: false
+      # loop
+
+    # TODO create users and groups for containers
