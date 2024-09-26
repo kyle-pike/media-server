@@ -1,4 +1,0 @@
-# requirements.yml
----
-collections:
-  - name: containers.podman
