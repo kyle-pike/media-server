@@ -1,0 +1,92 @@
+---
+# Configures a Debian based distro to be a media server
+- name: Media server setup
+  hosts: all
+  become: true
+  gather_facts: false
+  vars_files: vars.yml
+
+  tasks:
+    - name: Apt update
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600  # Update cache if older than one hour
+
+    - name: Apt upgrade
+      ansible.builtin.apt:
+        upgrade: full
+        autoremove: true
+        autoclean: true
+
+    - name: Install rootless podman requirements
+      ansible.builtin.apt:
+        pkg:
+          - podman-compose
+          - slirp4netns
+          - acl
+
+    - name: Create a non-login user for running containers
+      ansible.builtin.user:
+        name: "{{ podman_user }}"
+        uid: "{{ podman_id }}"
+        shell: /usr/sbin/nologin
+
+    - name: Append line to .bashrc  # set path for container-user's podman config files
+      ansible.builtin.lineinfile:
+        path: /home/{{ podman_user }}/.bashrc
+        line: "export XDG_RUNTIME_DIR=/run/user/{{ podman_id }}"
+        state: present
+        insertbefore: EOF  # Add the line at the end of the file
+
+    - name: Modify /etc/subuid  # set user namespaces for container-user
+      ansible.builtin.lineinfile:
+        path: /etc/subuid
+        search_string: "{{ podman_user }}"
+        state: present
+        line: "{{ podman_user }}:200000:2000"
+
+    - name: Modify /etc/subgid  # set user namespaces for container-user
+      ansible.builtin.lineinfile:
+        path: /etc/subgid
+        search_string: "{{ podman_user }}"
+        state: present
+        line: "{{ podman_user }}:200000:2000"
+
+    - name: Enable login linger  # allow processes to continue without active container-user login
+      ansible.builtin.shell: loginctl enable-linger {{ podman_user }} && loginctl show-user {{ podman_user }} --property=Linger
+      register: result
+      changed_when: '"Linger=yes" in result.stdout'
+      failed_when: result.rc == 2 or "Linger=no" in result.stdout
+
+    - name: Create containers # loop over 'containers' dictionary to have one play create each container
+      become: true
+      become_user: "{{ podman_user }}"
+      containers.podman.podman_container:
+        name: "{{ item.name }}"
+        image: "{{ item.image }}"
+        state: present
+        publish:
+          - "{{ item.port }}:{{ item.port }}"
+        generate_systemd:
+          path: "{{ podman_systemd_path }}"
+          new: true
+          restart_policy: always
+        env:
+          PUID: "{{ item.puid }}"
+          PGID: "{{ item.pgid }}"
+          TZ: "{{ timezone }}"
+        # volumes:
+          # -
+      loop: "{{ containers }}"
+
+    - name: Start and enable container services
+      become: true
+      become_user: "{{ podman_user }}"
+      ansible.builtin.systemd_service:
+        daemon_reload: true
+        scope: user
+        enabled: true
+        state: started
+        name: "container-{{ item.name }}"
+        masked: false
+      loop: "{{ containers }}"
