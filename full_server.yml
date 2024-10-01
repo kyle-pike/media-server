@@ -1,12 +1,21 @@
 ---
-# Configures a Debian based distro to be a media server
+# Configures Ubuntu server OS to become a media server
+# assumes the machine will have an external disk with the first partition being an ext4 filesystem
 - name: Media server setup
   hosts: all
   become: true
-  gather_facts: false
+  gather_facts: true
   vars_files: vars.yml
 
   tasks:
+    - name: Disable unattended-upgrades service
+      ansible.builtin.systemd_service:
+        scope: system
+        name: unattended-upgrades
+        enabled: false
+        state: stopped
+        masked: true
+
     - name: Apt update
       ansible.builtin.apt:
         update_cache: true
@@ -30,6 +39,12 @@
         name: "{{ podman_user }}"
         uid: "{{ podman_id }}"
         shell: /usr/sbin/nologin
+
+    - name: Ensure admin can view podman user $HOME
+      ansible.builtin.file:
+        path: "{{ podman_home }}"
+        state: directory
+        mode: '755'
 
     - name: Append line to .bashrc  # set path for container-user's podman config files
       ansible.builtin.lineinfile:
@@ -58,7 +73,53 @@
       changed_when: '"Linger=yes" in result.stdout'
       failed_when: result.rc == 2 or "Linger=no" in result.stdout
 
-    - name: Create containers # loop over 'containers' dictionary to have one play create each container
+    - name: Fail if external disk is disconnected
+      ansible.builtin.fail:
+        msg: "Connect external hard disk!"
+      when: "'sdb' not in ansible_devices"  # Check if 'sdb' is not in the devices
+
+    - name: Mount external disk
+      ansible.posix.mount:
+        path: /media/usb_hdd
+        src: /dev/sdb1
+        opts: rw,nofail,noauto
+        state: mounted
+        fstype: ext4
+
+    - name: Create group 'media'
+      ansible.builtin.group:
+        name: media
+        state: present
+        gid: 201000
+
+    - name: Create container users
+      ansible.builtin.user:
+        name: "{{ item.name }}"
+        shell: /usr/sbin/nologin
+        uid: "{{ item.real_uid }}"
+        groups: media
+        append: true
+        create_home: false
+      loop: "{{ containers }}"
+
+    - name: Ensure media directories exists
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        state: directory
+        mode: "{{ item.mode }}"
+        recurse: true
+        owner: "{{ item.owner }}"
+        group: "{{ item.group }}"
+      loop: "{{ directories }}"
+
+    - name: Pull container images
+      become: true
+      become_user: "{{ podman_user }}"
+      containers.podman.podman_image:
+        name: "{{ image_repo }}/{{ item.name }}"
+      loop: "{{ containers }}"
+
+    - name: Create containers' service files
       become: true
       become_user: "{{ podman_user }}"
       containers.podman.podman_container:
@@ -75,8 +136,7 @@
           PUID: "{{ item.puid }}"
           PGID: "{{ item.pgid }}"
           TZ: "{{ timezone }}"
-        # volumes:
-          # -
+        volume: "{{ item.mount }}"
       loop: "{{ containers }}"
 
     - name: Start and enable container services
@@ -90,3 +150,13 @@
         name: "container-{{ item.name }}"
         masked: false
       loop: "{{ containers }}"
+
+    - name: Prune old container images
+      become: true
+      become_user: "{{ podman_user }}"
+      containers.podman.podman_prune:
+        image: true
+        system_all: true
+
+    - name: Reboot machine
+      ansible.builtin.reboot:
