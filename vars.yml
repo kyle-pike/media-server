@@ -1,5 +1,5 @@
 ---
-# variables for media-server
+# variables for media.yml
 podman_user: podman-ager
 podman_id: 2000
 podman_home: "/home/{{ podman_user }}"
@@ -27,65 +27,90 @@ directories:
     owner: radarr
     group: radarr
 
+  - name: books
+    path: "{{ external_disk }}/books"
+    mode: '755'
+    owner: calibre
+    group: calibre
+
 containers:
   - name: sonarr
     image: "{{ image_repo }}/sonarr"
     puid: 1010
     pgid: 1001
-    port: 8989
+    port: 8989:8989
     mount:
       - "{{ directories[1].path }}:/tv"
       - "{{ directories[0].path }}:/downloads"
+      - "{{ podman_home}}/sonarr:/config"
     real_uid: 201009
 
   - name: radarr
     image: "{{ image_repo }}/radarr"
     puid: 1020
     pgid: 1001
-    port: 7878
+    port: 7878:7878
     mount:
       - "{{ directories[2].path }}:/movies"
       - "{{ directories[0].path }}:/downloads"
+      - "{{ podman_home}}/radarr:/config"
     real_uid: 201019
 
   - name: transmission
     image: "{{ image_repo }}/transmission"
     puid: 1050
     pgid: 1001
-    port: 9091
-    mount: "{{ directories[0].path }}:/downloads"
+    port: 9091:9091
+    mount:
+      - "{{ directories[0].path }}:/downloads"
+      - "{{ podman_home}}/transmission:/config"
     real_uid: 201049
 
   - name: sabnzbd
     image: "{{ image_repo }}/sabnzbd"
     puid: 1030
     pgid: 1001
-    port: 8080
-    mount: "{{ directories[0].path }}:/downloads"
+    port: 8080:8080
+    mount:
+      - "{{ directories[0].path }}:/downloads"
+      - "{{ podman_home}}/sabnzbd:/config"
     real_uid: 201029
 
   - name: jellyfin
     image: "{{ image_repo }}/jellyfin"
     puid: 1040
     pgid: 1040
-    port: 8096
+    port: 8096:8096
     mount:
       - "{{ directories[2].path }}:/data/movies:ro"
       - "{{ directories[1].path }}:/data/shows:ro"
+      - "{{ podman_home}}/jellyfin:/config"
     real_uid: 201039
 
   - name: ombi
     image: "{{ image_repo }}/ombi"
     puid: 1060
     pgid: 1060
-    port: 3579
-    mount: ''
+    port: 3579:3579
+    mount:
+      - "{{ podman_home}}/ombi:/config"
     real_uid: 201059
 
   - name: prowlarr
     image: "{{ image_repo }}/prowlarr"
     puid: 1070
     pgid: 1070
-    port: 9696
-    mount: ''
+    port: 9696:9696
+    mount:
+      - "{{ podman_home}}/prowlarr:/config"
     real_uid: 201069
+
+  - name: calibre
+    image: "{{ image_repo }}/calibre"
+    puid: 1080
+    pgid: 1080
+    port:
+      - 8081:8080
+      - 8082:8081
+    mount: "{{ directories[3].path }}:/config"
+    real_uid: 201079

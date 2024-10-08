@@ -1,6 +1,6 @@
 ---
 # Configures Ubuntu server OS to become a media server
-# assumes the machine will have an external disk with the first partition being an ext4 filesystem
+# assumes the machine will have an external disk with the first partition formatted as ext4
 - name: Media server setup
   hosts: all
   become: true
@@ -58,14 +58,14 @@
         path: /etc/subuid
         search_string: "{{ podman_user }}"
         state: present
-        line: "{{ podman_user }}:200000:2000"
+        line: "{{ podman_user }}:200000:65536"
 
     - name: Modify /etc/subgid  # set user namespaces for container-user
       ansible.builtin.lineinfile:
         path: /etc/subgid
         search_string: "{{ podman_user }}"
         state: present
-        line: "{{ podman_user }}:200000:2000"
+        line: "{{ podman_user }}:200000:65536"
 
     - name: Enable login linger  # allow processes to continue without active container-user login
       ansible.builtin.shell: loginctl enable-linger {{ podman_user }} && loginctl show-user {{ podman_user }} --property=Linger
@@ -76,13 +76,13 @@
     - name: Fail if external disk is disconnected
       ansible.builtin.fail:
         msg: "Connect external hard disk!"
-      when: "'sdb' not in ansible_devices"  # Check if 'sdb' is not in the devices
+      when: "'sda' not in ansible_devices"  # Check if 'sdb' is not in the devices
 
     - name: Mount external disk
       ansible.posix.mount:
         path: /media/usb_hdd
-        src: /dev/sdb1
-        opts: rw,nofail,noauto
+        src: /dev/sda1
+        opts: defaults
         state: mounted
         fstype: ext4
 
@@ -91,6 +91,13 @@
         name: media
         state: present
         gid: 201000
+
+    - name: Create container groups
+      ansible.builtin.group:
+        name: "{{ item.name }}"
+        state: present
+        gid: "{{ item.real_uid }}"
+      loop: "{{ containers }}"
 
     - name: Create container users
       ansible.builtin.user:
@@ -112,11 +119,21 @@
         group: "{{ item.group }}"
       loop: "{{ directories }}"
 
+    - name: Ensure app directories exists
+      ansible.builtin.file:
+        path: "{{ podman_home }}/{{ item.name }}"
+        state: directory
+        mode: "755"
+        recurse: true
+        owner: "{{ item.name }}"
+        group: "{{ item.name }}"
+      loop: "{{ containers }}"
+
     - name: Pull container images
       become: true
       become_user: "{{ podman_user }}"
       containers.podman.podman_image:
-        name: "{{ image_repo }}/{{ item.name }}"
+        name: "{{ item.image }}"
       loop: "{{ containers }}"
 
     - name: Create containers' service files
@@ -126,8 +143,7 @@
         name: "{{ item.name }}"
         image: "{{ item.image }}"
         state: present
-        publish:
-          - "{{ item.port }}:{{ item.port }}"
+        publish: "{{ item.port }}"
         generate_systemd:
           path: "{{ podman_systemd_path }}"
           new: true

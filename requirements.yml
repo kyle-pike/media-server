@@ -1,5 +1,5 @@
-# requirements.yml
 ---
+# requirements for media.yml
 collections:
   - containers.podman
   - ansible.posix
