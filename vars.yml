@@ -56,15 +56,15 @@ containers:
       - "{{ podman_home}}/radarr:/config"
     real_uid: 201019
 
-  - name: transmission
-    image: "{{ image_repo }}/transmission"
-    puid: 1050
-    pgid: 1001
-    port: 9091:9091
-    mount:
-      - "{{ directories[0].path }}:/downloads"
-      - "{{ podman_home}}/transmission:/config"
-    real_uid: 201049
+  # - name: transmission
+  #   image: "{{ image_repo }}/transmission"
+  #   puid: 1050
+  #   pgid: 1001
+  #   port: 9091:9091
+  #   mount:
+  #     - "{{ directories[0].path }}:/downloads"
+  #     - "{{ podman_home}}/transmission:/config"
+  #   real_uid: 201049
 
   - name: sabnzbd
     image: "{{ image_repo }}/sabnzbd"
@@ -76,16 +76,16 @@ containers:
       - "{{ podman_home}}/sabnzbd:/config"
     real_uid: 201029
 
-  - name: jellyfin
-    image: "{{ image_repo }}/jellyfin"
-    puid: 1040
-    pgid: 1040
-    port: 8096:8096
-    mount:
-      - "{{ directories[2].path }}:/data/movies:ro"
-      - "{{ directories[1].path }}:/data/shows:ro"
-      - "{{ podman_home}}/jellyfin:/config"
-    real_uid: 201039
+  # - name: jellyfin
+  #   image: "{{ image_repo }}/jellyfin"
+  #   puid: 1040
+  #   pgid: 1040
+  #   port: 8096:8096
+  #   mount:
+  #     - "{{ directories[2].path }}:/data/movies:ro"
+  #     - "{{ directories[1].path }}:/data/shows:ro"
+  #     - "{{ podman_home}}/jellyfin:/config"
+  #   real_uid: 201039
 
   - name: ombi
     image: "{{ image_repo }}/ombi"

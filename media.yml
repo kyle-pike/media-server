@@ -134,6 +134,7 @@
       become_user: "{{ podman_user }}"
       containers.podman.podman_image:
         name: "{{ item.image }}"
+        force: true
       loop: "{{ containers }}"
 
     - name: Create containers' service files
@@ -143,6 +144,7 @@
         name: "{{ item.name }}"
         image: "{{ item.image }}"
         state: present
+        recreate: true
         publish: "{{ item.port }}"
         generate_systemd:
           path: "{{ podman_systemd_path }}"
