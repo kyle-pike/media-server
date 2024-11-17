@@ -76,16 +76,16 @@ containers:
       - "{{ podman_home}}/sabnzbd:/config"
     real_uid: 201029
 
-  # - name: jellyfin
-  #   image: "{{ image_repo }}/jellyfin"
-  #   puid: 1040
-  #   pgid: 1040
-  #   port: 8096:8096
-  #   mount:
-  #     - "{{ directories[2].path }}:/data/movies:ro"
-  #     - "{{ directories[1].path }}:/data/shows:ro"
-  #     - "{{ podman_home}}/jellyfin:/config"
-  #   real_uid: 201039
+  - name: jellyfin
+    image: "{{ image_repo }}/jellyfin"
+    puid: 1040
+    pgid: 1040
+    port: 8096:8096
+    mount:
+      - "{{ directories[2].path }}:/data/movies:ro"
+      - "{{ directories[1].path }}:/data/shows:ro"
+      - "{{ podman_home}}/jellyfin:/config"
+    real_uid: 201039
 
   - name: ombi
     image: "{{ image_repo }}/ombi"
